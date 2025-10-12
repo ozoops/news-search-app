@@ -66,14 +66,12 @@ if submitted:
             for keyword, items in results_by_keyword.items():
                 st.subheader(f"'{keyword}' 검색 결과 ({len(items)}건)")
                 df = pd.DataFrame(items)
+                # 제목(title)과 링크(link)를 마크다운 링크 형식으로 합친 새 열 생성
+                df['기사 제목'] = df.apply(lambda row: f"[{row['title']}]({row['link']})", axis=1)
                 
-                st.dataframe(
-                    df,
-                    column_config={
-                        "title": st.column_config.TextColumn("제목", width="large"),
-                        "link": st.column_config.LinkColumn("기사 링크", display_text="바로가기")
-                    },
-                    hide_index=True,
-                    use_container_width=True
+                # 마크다운 테이블로 변환하여 출력
+                st.markdown(
+                    df[['기사 제목']].to_markdown(index=False),
+                    unsafe_allow_html=True
                 )
                 st.write(" ") # 여백
