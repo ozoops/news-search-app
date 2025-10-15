@@ -20,8 +20,6 @@ DEFAULT_HEADERS = {
 }
 SEARCH_BASE = "https://search.naver.com/search.naver"
 SLEEP_BETWEEN_REQUESTS = 0.1
-SEARCH_PAGES = 5  # 한 번에 더 많은 결과를 보여주기 위해 페이지 수 증가
-MAX_PER_KEYWORD = 50
 
 # ---------------- 유틸 ----------------
 def validate_yyyymmdd(s: str) -> None:
@@ -83,8 +81,10 @@ def parse_search_results(html: str):
     return out
 
 # ---------------- 네이버 뉴스 검색 ----------------
-def search_naver_news(keyword: str, start_date: str, end_date: str, pages=SEARCH_PAGES, max_items=MAX_PER_KEYWORD):
+def search_naver_news(keyword: str, start_date: str, end_date: str, max_items=100):
     results, collected = [], 0
+    pages = (max_items + 9) // 10 # 페이지당 10개 결과
+
     for page in range(pages):
         params = {
             "where": "news",
@@ -114,4 +114,44 @@ def search_naver_news(keyword: str, start_date: str, end_date: str, pages=SEARCH
             print(f"Search request failed for URL {url}: {e}")
             break
             
+    return results
+
+# ---------------- 구글 뉴스 검색 ----------------
+def search_google_news(keyword: str, start_date: str, end_date: str, max_items=100):
+    results = []
+    # Google 날짜 형식은 YYYY-MM-DD 이지만, URL 파라미터는 M/D/YYYY 형식
+    start_date_obj = datetime.strptime(start_date, "%Y-%m-%d")
+    end_date_obj = datetime.strptime(end_date, "%Y-%m-%d")
+    start_date_google = start_date_obj.strftime("%m/%d/%Y")
+    end_date_google = end_date_obj.strftime("%m/%d/%Y")
+
+    params = {
+        "q": keyword,
+        "tbm": "nws",
+        "tbs": f"cdr:1,cd_min:{start_date_google},cd_max:{end_date_google}",
+        "num": min(max_items, 100) # 구글은 최대 100개까지 지원
+    }
+    url = "https://www.google.com/search?" + urlencode(params)
+
+    try:
+        r = safe_get(url, headers=DEFAULT_HEADERS)
+        soup = BeautifulSoup(r.text, "html.parser")
+        
+        # Google 검색 결과에서 제목과 링크 추출
+        for a_tag in soup.select("a[href^='/url?q=']"):
+            h3_tag = a_tag.find("h3")
+            if h3_tag:
+                title = h3_tag.get_text(strip=True)
+                link = a_tag["href"]
+                # 실제 링크만 추출
+                parsed_link = urlparse(link)
+                actual_link = parsed_link.query.split("&")[0].replace("q=", "")
+                if title and actual_link.startswith("http"):
+                    results.append({"title": title, "link": actual_link})
+                    if len(results) >= max_items:
+                        return results
+
+    except requests.RequestException as e:
+        print(f"Google search request failed for URL {url}: {e}")
+
     return results
