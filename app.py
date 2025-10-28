@@ -4,7 +4,7 @@ import pandas as pd
 from datetime import date, datetime
 
 # 간소화된 스크립트에서 필요한 함수만 가져옵니다.
-from 뉴스수집 import search_naver_news, search_google_news, resolve_dates
+from 뉴스수집_debug import search_naver_news, search_google_news, resolve_dates
 
 # --- Streamlit UI 설정 ---
 st.set_page_config(page_title="뉴스 검색", page_icon="📰", layout="wide")

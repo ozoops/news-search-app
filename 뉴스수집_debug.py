@@ -12,6 +12,7 @@ from urllib.parse import urlencode, urlparse, urljoin, parse_qs
 from datetime import datetime, timedelta, timezone
 import xml.etree.ElementTree as ET
 from email.utils import parsedate_to_datetime
+import sys
 
 # ---------------- 설정 ----------------
 DEFAULT_HEADERS = {
@@ -24,6 +25,22 @@ SEARCH_BASE = "https://search.naver.com/search.naver"
 SLEEP_BETWEEN_REQUESTS = 0.1
 GOOGLE_NEWS_RSS = "https://news.google.com/rss/search"
 GOOGLE_NEWS_HTML = "https://www.google.com/search"
+
+
+def _safe_console_text(value) -> str:
+    text = value if isinstance(value, str) else str(value)
+    encoding = getattr(sys.stdout, "encoding", None)
+    if not encoding:
+        return text
+    try:
+        text.encode(encoding)
+    except UnicodeEncodeError:
+        text = text.encode(encoding, errors="replace").decode(encoding, errors="replace")
+    return text
+
+
+def safe_print(value) -> None:
+    print(_safe_console_text(value))
 
 # ---------------- 유틸 ----------------
 def validate_yyyymmdd(s: str) -> None:
@@ -149,7 +166,7 @@ def search_naver_news(keyword: str, start_date: str, end_date: str, max_items=10
                 time.sleep(SLEEP_BETWEEN_REQUESTS)
 
         except requests.RequestException as e:
-            print(f"Search request failed for URL {url}: {e}")
+            safe_print(f"Search request failed for URL {url}: {e}")
             break
             
     return results
@@ -162,7 +179,7 @@ def search_google_news(keyword: str, start_date: str, end_date: str, max_items=1
         start_dt = datetime.strptime(start_date, "%Y-%m-%d").date()
         end_dt = datetime.strptime(end_date, "%Y-%m-%d").date()
     except ValueError:
-        print("Invalid date format for Google News search. Expect YYYY-MM-DD.")
+        safe_print("Invalid date format for Google News search. Expect YYYY-MM-DD.")
         return results
 
     inclusive_end = (end_dt + timedelta(days=1)).isoformat()
@@ -179,13 +196,13 @@ def search_google_news(keyword: str, start_date: str, end_date: str, max_items=1
     try:
         r = safe_get(url, headers=DEFAULT_HEADERS)
     except requests.RequestException as e:
-        print(f"Google search request failed for URL {url}: {e}")
+        safe_print(f"Google search request failed for URL {url}: {e}")
         return _search_google_news_html(keyword, start_dt, end_dt, max_items)
 
     try:
         root = ET.fromstring(r.content)
     except ET.ParseError as e:
-        print(f"Failed to parse Google News RSS feed: {e}")
+        safe_print(f"Failed to parse Google News RSS feed: {e}")
         return _search_google_news_html(keyword, start_dt, end_dt, max_items)
 
     seen_links = set()
@@ -213,9 +230,9 @@ def search_google_news(keyword: str, start_date: str, end_date: str, max_items=1
 
     fallback = _search_google_news_html(keyword, start_dt, end_dt, max_items)
     if fallback:
-        print(f"Google RSS feed empty; HTML fallback returned {len(fallback)} articles.")
+        safe_print(f"Google RSS feed empty; HTML fallback returned {len(fallback)} articles.")
     else:
-        print("Google RSS feed returned no articles; HTML fallback also returned none.")
+        safe_print("Google RSS feed returned no articles; HTML fallback also returned none.")
     return fallback
 
 
@@ -234,7 +251,7 @@ def _search_google_news_html(keyword, start_dt, end_dt, max_items):
     try:
         r = safe_get(url, headers=DEFAULT_HEADERS)
     except requests.RequestException as e:
-        print(f"Google HTML fallback failed for URL {url}: {e}")
+        safe_print(f"Google HTML fallback failed for URL {url}: {e}")
         return []
 
     soup = BeautifulSoup(r.text, "html.parser")
@@ -258,6 +275,6 @@ def _search_google_news_html(keyword, start_dt, end_dt, max_items):
             break
 
     if not fallback_results:
-        print("Google HTML fallback returned no articles.")
+        safe_print("Google HTML fallback returned no articles.")
 
     return fallback_results
